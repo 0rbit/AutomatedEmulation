@@ -69,12 +69,12 @@ output "public_dns" {
 variable "bas_server_instance_type" {
   description = "The AWS instance type to use for servers."
   #default     = "t2.micro"
-  default     = "t3a.medium"
+  default = "t3a.medium"
 }
 
 variable "bas_root_block_device_size" {
   description = "The volume size of the root block device."
-  default     =  130 
+  default     = 130
 }
 
 resource "aws_security_group" "bas_ingress" {
@@ -83,42 +83,47 @@ resource "aws_security_group" "bas_ingress" {
 
   # Server port 2222 Caldera 
   ingress {
-    from_port       = 2222 
-    to_port         = 2222 
-    protocol        = "tcp"
-    cidr_blocks     = [local.src_ip]
+    from_port        = 2222
+    to_port          = 2222
+    protocol         = "tcp"
+    cidr_blocks      = [local.src_ip]
+    ipv6_cidr_blocks = local.ipv6_cidr_blocks
   }
 
   # Port 5000 Caldera mlflow server
   ingress {
-    from_port       = 5000
-    to_port         = 5000
-    protocol        = "tcp"
-    cidr_blocks     = [local.src_ip]
+    from_port        = 5000
+    to_port          = 5000
+    protocol         = "tcp"
+    cidr_blocks      = [local.src_ip]
+    ipv6_cidr_blocks = local.ipv6_cidr_blocks
   }
 
   # Server port Caldera http console
   ingress {
-    from_port       = var.caldera_port 
-    to_port         = var.caldera_port 
-    protocol        = "tcp"
-    cidr_blocks     = [local.src_ip]
+    from_port        = var.caldera_port
+    to_port          = var.caldera_port
+    protocol         = "tcp"
+    cidr_blocks      = [local.src_ip]
+    ipv6_cidr_blocks = local.ipv6_cidr_blocks
   }
 
   # Server port Caldera https console
   ingress {
-    from_port       = var.caldera_port_https 
-    to_port         = var.caldera_port_https 
-    protocol        = "tcp"
-    cidr_blocks     = [local.src_ip]
+    from_port        = var.caldera_port_https
+    to_port          = var.caldera_port_https
+    protocol         = "tcp"
+    cidr_blocks      = [local.src_ip]
+    ipv6_cidr_blocks = local.ipv6_cidr_blocks
   }
 
   # Server port 8081 VECTR https console
   ingress {
-    from_port       = var.vectr_port 
-    to_port         = var.vectr_port 
-    protocol        = "tcp"
-    cidr_blocks     = [local.src_ip]
+    from_port        = var.vectr_port
+    to_port          = var.vectr_port
+    protocol         = "tcp"
+    cidr_blocks      = [local.src_ip]
+    ipv6_cidr_blocks = local.ipv6_cidr_blocks
   }
 
   ingress {
@@ -142,10 +147,11 @@ resource "aws_security_group" "bas_ssh_ingress" {
 
   # SSH
   ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [local.src_ip]
+    from_port        = 22
+    to_port          = 22
+    protocol         = "tcp"
+    cidr_blocks      = [local.src_ip]
+    ipv6_cidr_blocks = local.ipv6_cidr_blocks
   }
 
   ingress {
@@ -175,22 +181,22 @@ resource "aws_security_group" "bas_allow_all_internal" {
   }
 
   ingress {
-    from_port = 0
-    to_port   = 0
-    protocol  = "-1"
-    cidr_blocks = [var.vpc_cidr]
-  }
-  egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    self        = true
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    self      = true
   }
 }
 
 data "aws_ami" "bas_server" {
-  most_recent      = true
-  owners           = ["099720109477"]
+  most_recent = true
+  owners      = ["099720109477"]
 
   filter {
     name   = "name"
@@ -217,7 +223,7 @@ resource "aws_instance" "bas_server" {
   ami                    = data.aws_ami.bas_server.id
   instance_type          = var.bas_server_instance_type
   subnet_id              = aws_subnet.user_subnet.id
-  key_name               = module.key_pair.key_pair_name 
+  key_name               = module.key_pair.key_pair_name
   vpc_security_group_ids = [aws_security_group.bas_ingress.id, aws_security_group.bas_ssh_ingress.id, aws_security_group.bas_allow_all_internal.id]
 
   connection {
@@ -238,9 +244,9 @@ resource "aws_instance" "bas_server" {
   }
 
   user_data = templatefile("files/bas/bootstrap.sh.tpl", {
-    s3_bucket                 = "${aws_s3_bucket.staging.id}" 
-    region                    = var.region
-    api_key                   = var.api_key_red
+    s3_bucket = "${aws_s3_bucket.staging.id}"
+    region    = var.region
+    api_key   = var.api_key_red
   })
 
 }
@@ -300,25 +306,25 @@ CONFIGURATION
 }
 
 resource "aws_s3_object" "caldera_service_config" {
-  bucket = aws_s3_bucket.staging.id
-  key    = "caldera.service"
-  source = "${path.module}/files/bas/caldera.service"
+  bucket       = aws_s3_bucket.staging.id
+  key          = "caldera.service"
+  source       = "${path.module}/files/bas/caldera.service"
   content_type = "text/plain"
 }
 
 resource "aws_s3_object" "caldera_local_yml" {
-  bucket = aws_s3_bucket.staging.id
-  key    = "local.yml"
-  source = local_file.caldera_local_yml.filename
+  bucket       = aws_s3_bucket.staging.id
+  key          = "local.yml"
+  source       = local_file.caldera_local_yml.filename
   content_type = "text/plain"
 
   depends_on = [local_file.caldera_local_yml]
 }
 
 resource "aws_s3_object" "vectr_env" {
-  bucket = aws_s3_bucket.staging.id
-  key    = "vectr_env"
-  source = local_file.vectr_env.filename
+  bucket       = aws_s3_bucket.staging.id
+  key          = "vectr_env"
+  source       = local_file.vectr_env.filename
   content_type = "text/plain"
 
   depends_on = [local_file.vectr_env]
@@ -336,66 +342,66 @@ resource "local_file" "vectr_env" {
 
 locals {
   caldera_local_yml = templatefile("${path.module}/files/bas/local.yml.tpl", {
-    api_key_blue            = var.api_key_blue 
-    api_key_red             = var.api_key_red
-    blue_username           = var.blue_username
-    blue_password           = var.blue_password
-    caldera_admin_username  = var.caldera_admin_username
-    caldera_admin_password  = var.caldera_admin_password
-    red_username            = var.red_username
-    red_password            = var.red_password
-    caldera_port            = var.caldera_port_https
-    caldera_listen          = var.caldera_port
-    caldera_host            = aws_instance.bas_server.public_dns
-    caldera_transport       = var.caldera_transport_protocol
+    api_key_blue           = var.api_key_blue
+    api_key_red            = var.api_key_red
+    blue_username          = var.blue_username
+    blue_password          = var.blue_password
+    caldera_admin_username = var.caldera_admin_username
+    caldera_admin_password = var.caldera_admin_password
+    red_username           = var.red_username
+    red_password           = var.red_password
+    caldera_port           = var.caldera_port_https
+    caldera_listen         = var.caldera_port
+    caldera_host           = aws_instance.bas_server.public_dns
+    caldera_transport      = var.caldera_transport_protocol
   })
 }
 
 locals {
   vectr_env = templatefile("${path.module}/files/bas/vectr_env.tpl", {
-    vectr_hostname   = aws_instance.bas_server.public_dns 
-    vectr_port       = var.vectr_port
+    vectr_hostname = aws_instance.bas_server.public_dns
+    vectr_port     = var.vectr_port
   })
 }
 
 data "archive_file" "abilities" {
-    type        = "zip"
-    source_dir  = "${path.module}/files/bas/abilities"
-    output_path = "${path.module}/output/bas/abilities.zip"
+  type        = "zip"
+  source_dir  = "${path.module}/files/bas/abilities"
+  output_path = "${path.module}/output/bas/abilities.zip"
 }
 
 data "archive_file" "payloads" {
-    type        = "zip"
-    source_dir  = "${path.module}/files/bas/payloads"
-    output_path = "${path.module}/output/bas/payloads.zip"
+  type        = "zip"
+  source_dir  = "${path.module}/files/bas/payloads"
+  output_path = "${path.module}/output/bas/payloads.zip"
 }
 
 data "archive_file" "adversaries" {
-    type        = "zip"
-    source_dir  = "${path.module}/files/bas/adversaries"
-    output_path = "${path.module}/output/bas/adversaries.zip"
+  type        = "zip"
+  source_dir  = "${path.module}/files/bas/adversaries"
+  output_path = "${path.module}/output/bas/adversaries.zip"
 }
 
 resource "aws_s3_object" "abilities_zip" {
-    depends_on = [data.archive_file.abilities]
-    
-    bucket = aws_s3_bucket.staging.id
-    key    = "abilities.zip"
-    source = "${data.archive_file.abilities.output_path}"
+  depends_on = [data.archive_file.abilities]
+
+  bucket = aws_s3_bucket.staging.id
+  key    = "abilities.zip"
+  source = data.archive_file.abilities.output_path
 }
 
 resource "aws_s3_object" "payloads_zip" {
-    depends_on = [data.archive_file.payloads]
-    
-    bucket = aws_s3_bucket.staging.id
-    key    = "payloads.zip"
-    source = "${data.archive_file.payloads.output_path}"
+  depends_on = [data.archive_file.payloads]
+
+  bucket = aws_s3_bucket.staging.id
+  key    = "payloads.zip"
+  source = data.archive_file.payloads.output_path
 }
 
 resource "aws_s3_object" "adversaries_zip" {
-    depends_on = [data.archive_file.adversaries]
+  depends_on = [data.archive_file.adversaries]
 
-    bucket = aws_s3_bucket.staging.id
-    key    = "adversaries.zip"
-    source = "${data.archive_file.adversaries.output_path}"
+  bucket = aws_s3_bucket.staging.id
+  key    = "adversaries.zip"
+  source = data.archive_file.adversaries.output_path
 }
