@@ -22,7 +22,8 @@ resource "tls_private_key" "operator" {
 }
 
 module "key_pair" {
-  source = "terraform-aws-modules/key-pair/aws"
+  source  = "terraform-aws-modules/key-pair/aws"
+  version = "2.1.1"
 
   key_name   = "operator-${local.rs}"
   public_key = tls_private_key.operator.public_key_openssh
