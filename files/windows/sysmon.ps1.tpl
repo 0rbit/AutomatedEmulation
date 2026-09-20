@@ -15,74 +15,50 @@ $myindex = Get-Netadapter -Name "Ethernet" | Select-Object -ExpandProperty IfInd
   Set-DNSClientServerAddress -InterfaceIndex $myindex -ServerAddresses "8.8.8.8"
 
 # Download Sysmon config xml
-$object_url = "https://" + "${s3_bucket}" + ".s3." + "${region}" + ".amazonaws.com/" + "${sysmon_config}"
 $outfile = "C:\terraform\" + "${sysmon_config}"
-$MaxAttempts = 5
-$TimeoutSeconds = 30
-$Attempt = 0
-lwrite("Going to download from S3 bucket: ${s3_bucket}")
-lwrite("object url: $object_url")
-
-if (Test-Path -Path "C:\Terraform\${sysmon_config}") {
-  lwrite("sysmon config exists")
-} else {
+$awsCli = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
+$env:AWS_DEFAULT_REGION = "${region}"
+function Download-StagingObject {
+  Param ([string]$key, [string]$outfile)
+  $MaxAttempts = 5
+  $Attempt = 0
+  lwrite("Downloading s3://${s3_bucket}/$key to $outfile")
   while ($Attempt -lt $MaxAttempts) {
     $Attempt += 1
     lwrite("Attempt: $Attempt")
     try {
-        Invoke-WebRequest -Uri "$object_url" -OutFile $outfile -TimeoutSec $TimeoutSeconds 
+      & $awsCli s3 cp "s3://${s3_bucket}/$key" $outfile --region "${region}"
+      if ($LASTEXITCODE -eq 0) {
         lwrite("Successful")
-        break
+        return
+      }
+      lwrite("aws s3 cp failed with exit code $LASTEXITCODE. Retrying...")
     } catch {
-
-        if ($_.Exception.GetType().Name -eq "WebException" -and $_.Exception.Status -eq "Timeout") {
-            lwrite("Connection timed out. Retrying...")
-        } else {
-            lwrite("An unexpected error occurred:")
-            lwrite($_.Exception.Message)
-            break
-        }
+      lwrite("An unexpected error occurred:")
+      lwrite($_.Exception.Message)
     }
+    Start-Sleep -Seconds 2
   }
-  if ($Attempt -eq $MaxAttempts) {
-    Write-Host "Reached maximum number of attempts. Continuing..."
-  }
+  lwrite("Reached maximum number of attempts. Continuing...")
+}
+lwrite("Going to download from S3 bucket: ${s3_bucket}")
+
+if (Test-Path -Path "C:\Terraform\${sysmon_config}") {
+  lwrite("sysmon config exists")
+} else {
+  Download-StagingObject "${sysmon_config}" $outfile
 }
 # Finished Download of Sysmon config xml
 
 
 # Download Sysmon zip 
-$object_url = "https://" + "${s3_bucket}" + ".s3." + "${region}" + ".amazonaws.com/" + "${sysmon_zip}"
 $outfile = "C:\terraform\" + "${sysmon_zip}"
-$MaxAttempts = 5
-$TimeoutSeconds = 30
-$Attempt = 0
 lwrite("Going to download from S3 bucket: ${s3_bucket}")
-lwrite("object url: $object_url")
 
 if (Test-Path -Path "C:\Terraform\${sysmon_zip}") {
   lwrite("sysmon zip exists")
 } else {
-  while ($Attempt -lt $MaxAttempts) {
-    $Attempt += 1
-    lwrite("Attempt: $Attempt")
-    try {
-        Invoke-WebRequest -Uri "$object_url" -OutFile $outfile -TimeoutSec $TimeoutSeconds
-        lwrite("Successful")
-        break
-    } catch {
-        if ($_.Exception.GetType().Name -eq "WebException" -and $_.Exception.Status -eq "Timeout") {
-            lwrite("Connection timed out. Retrying...")
-        } else {
-            lwrite("An unexpected error occurred:")
-            lwrite($_.Exception.Message)
-            break
-        }
-    }
-  }
-  if ($Attempt -eq $MaxAttempts) {
-    Write-Host "Reached maximum number of attempts. Continuing..."
-  }
+  Download-StagingObject "${sysmon_zip}" $outfile
 }
 # Finished Download of Sysmon zip
 

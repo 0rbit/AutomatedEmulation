@@ -8,6 +8,25 @@ echo "Start bootstrap script"
 sudo apt-get update -y
 sudo apt-get install net-tools -y
 sudo apt-get install unzip -y
+sudo apt-get install -y awscli
+export AWS_DEFAULT_REGION="${region}"
+
+download_s3_object() {
+  local file="$1"
+  local dest="$2"
+  echo "Downloading s3://${s3_bucket}/$file to $dest"
+  for i in {1..5}
+  do
+    echo "Download attempt: $i"
+    if aws s3 cp "s3://${s3_bucket}/$file" "$dest" --region "${region}"; then
+      echo "Download successful."
+      return 0
+    fi
+    echo "Download failed. Retrying..."
+    sleep 2
+  done
+  return 1
+}
 
 # Golang 1.22 install
 echo "Installing Golang 1.22"
@@ -54,39 +73,11 @@ openssl req -new -x509 -key key.pem -out certificate.pem -days 365 -subj "/C=US/
 
 # Get caldera.service 
 echo "Get caldera.service"
-file="caldera.service"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/caldera.service
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
+download_s3_object "caldera.service" /opt/caldera/caldera.service
 
 # Get local.yml 
 echo "Get local.yml"
-file="local.yml"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/local.yml
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
+download_s3_object "local.yml" /opt/caldera/local.yml
 
 cd /opt/caldera
 sudo pip3 install -r requirements.txt
@@ -156,61 +147,19 @@ sed -i 's/insecure_certificate.pem/certificate.pem/' conf/haproxy.conf
 
 # Download abilities zip
 echo "Get abilities.zip"
-file="abilities.zip"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/abilities.zip
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
+download_s3_object "abilities.zip" /opt/caldera/abilities.zip
 # unzip abilities
 sudo unzip /opt/caldera/abilities.zip -d /opt/caldera/data/abilities/
 
 # Download adversaries zip
 echo "Get adversaries.zip"
-file="adversaries.zip"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/adversaries.zip
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying"
-    fi
-done
+download_s3_object "adversaries.zip" /opt/caldera/adversaries.zip
 # unzip adversaries
 sudo unzip /opt/caldera/adversaries.zip -d /opt/caldera/data/adversaries/
 
 # Download payloads zip
 echo "Get payloads.zip"
-file="payloads.zip"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/payloads.zip
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
+download_s3_object "payloads.zip" /opt/caldera/payloads.zip
 # unzip payloads
 sudo unzip /opt/caldera/payloads.zip -d /opt/caldera/data/payloads/
 
@@ -239,21 +188,7 @@ wget https://github.com/SecurityRiskAdvisors/VECTR/releases/download/ce-8.8.1/sr
 unzip sra-vectr-runtime-8.8.1-ce.zip
 # Get the .env with correct variables
 echo "Get vector .env"
-file="vectr_env"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/vectr/vectr_env
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
+download_s3_object "vectr_env" /opt/vectr/vectr_env
 #copy the vectr_env to .env
 cp /opt/vectr/vectr_env /opt/vectr/.env
 # Start docker containers

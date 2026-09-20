@@ -224,6 +224,7 @@ resource "aws_instance" "bas_server" {
   instance_type          = var.bas_server_instance_type
   subnet_id              = aws_subnet.user_subnet.id
   key_name               = module.key_pair.key_pair_name
+  iam_instance_profile   = aws_iam_instance_profile.staging.name
   vpc_security_group_ids = [aws_security_group.bas_ingress.id, aws_security_group.bas_ssh_ingress.id, aws_security_group.bas_allow_all_internal.id]
 
   connection {
