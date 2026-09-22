@@ -8,25 +8,6 @@ echo "Start bootstrap script"
 sudo apt-get update -y
 sudo apt-get install net-tools -y
 sudo apt-get install unzip -y
-sudo apt-get install -y awscli
-export AWS_DEFAULT_REGION="${region}"
-
-download_s3_object() {
-  local file="$1"
-  local dest="$2"
-  echo "Downloading s3://${s3_bucket}/$file to $dest"
-  for i in {1..5}
-  do
-    echo "Download attempt: $i"
-    if aws s3 cp "s3://${s3_bucket}/$file" "$dest" --region "${region}"; then
-      echo "Download successful."
-      return 0
-    fi
-    echo "Download failed. Retrying..."
-    sleep 2
-  done
-  return 1
-}
 
 # Golang 1.22 install
 echo "Installing Golang 1.22"
@@ -71,13 +52,17 @@ export INSTANCE_PUBLIC_DNS=$PUBLIC_DNS
 openssl genpkey -algorithm RSA -out key.pem -pkeyopt rsa_keygen_bits:2048
 openssl req -new -x509 -key key.pem -out certificate.pem -days 365 -subj "/C=US/ST=New York/L=New York City/O=Your Organization/OU=Caldera/CN=$INSTANCE_PUBLIC_DNS" 
 
-# Get caldera.service 
-echo "Get caldera.service"
-download_s3_object "caldera.service" /opt/caldera/caldera.service
+# Staging files are embedded in user-data so BAS does not need S3 at boot.
+echo "Write caldera.service"
+cat > /opt/caldera/caldera.service << 'CALDERA_SERVICE_EOF'
+${caldera_service}
+CALDERA_SERVICE_EOF
 
-# Get local.yml 
-echo "Get local.yml"
-download_s3_object "local.yml" /opt/caldera/local.yml
+echo "Write local.yml"
+cat > /opt/caldera/local.yml << 'LOCALYML_EOF'
+${caldera_local_yml}
+LOCALYML_EOF
+sed -i "s/INSTANCE_PUBLIC_DNS/$${PUBLIC_DNS}/g" /opt/caldera/local.yml
 
 cd /opt/caldera
 sudo pip3 install -r requirements.txt
@@ -145,23 +130,18 @@ sed -i 's/insecure_certificate.pem/certificate.pem/' conf/haproxy.conf
 #sed -i "s|http://0.0.0.0:8888|https://$INSTANCE_PUBLIC_DNS:8443|" conf/local.yml
 #sed -i "s|host: 0.0.0.0|host: $INSTANCE_PUBLIC_DNS|" conf/local.yml
 
-# Download abilities zip
-echo "Get abilities.zip"
-download_s3_object "abilities.zip" /opt/caldera/abilities.zip
-# unzip abilities
-sudo unzip /opt/caldera/abilities.zip -d /opt/caldera/data/abilities/
+# Unpack custom abilities, adversaries, and payloads bundled in user-data
+echo "Write abilities.zip"
+echo "${abilities_zip_b64}" | base64 -d > /opt/caldera/abilities.zip
+sudo unzip -o /opt/caldera/abilities.zip -d /opt/caldera/data/abilities/
 
-# Download adversaries zip
-echo "Get adversaries.zip"
-download_s3_object "adversaries.zip" /opt/caldera/adversaries.zip
-# unzip adversaries
-sudo unzip /opt/caldera/adversaries.zip -d /opt/caldera/data/adversaries/
+echo "Write adversaries.zip"
+echo "${adversaries_zip_b64}" | base64 -d > /opt/caldera/adversaries.zip
+sudo unzip -o /opt/caldera/adversaries.zip -d /opt/caldera/data/adversaries/
 
-# Download payloads zip
-echo "Get payloads.zip"
-download_s3_object "payloads.zip" /opt/caldera/payloads.zip
-# unzip payloads
-sudo unzip /opt/caldera/payloads.zip -d /opt/caldera/data/payloads/
+echo "Write payloads.zip"
+echo "${payloads_zip_b64}" | base64 -d > /opt/caldera/payloads.zip
+sudo unzip -o /opt/caldera/payloads.zip -d /opt/caldera/data/payloads/
 
 sudo chown -R caldera:caldera /opt/caldera
 sudo chmod 644 /etc/systemd/system/caldera.service
@@ -186,10 +166,12 @@ mkdir -p /opt/vectr
 cd /opt/vectr
 wget https://github.com/SecurityRiskAdvisors/VECTR/releases/download/ce-8.8.1/sra-vectr-runtime-8.8.1-ce.zip 
 unzip sra-vectr-runtime-8.8.1-ce.zip
-# Get the .env with correct variables
-echo "Get vector .env"
-download_s3_object "vectr_env" /opt/vectr/vectr_env
-#copy the vectr_env to .env
+# Write VECTR .env from user-data (hostname filled from IMDS)
+echo "Write vectr .env"
+cat > /opt/vectr/vectr_env << 'VECTR_ENV_EOF'
+${vectr_env}
+VECTR_ENV_EOF
+sed -i "s/INSTANCE_PUBLIC_DNS/$${PUBLIC_DNS}/g" /opt/vectr/vectr_env
 cp /opt/vectr/vectr_env /opt/vectr/.env
 # Start docker containers
 echo "Start vectr containers"

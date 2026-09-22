@@ -53,6 +53,10 @@ resource "aws_instance" "win1" {
   }
   depends_on = [
     # reserved for later
+    aws_iam_role_policy.staging_read,
+    aws_iam_instance_profile.staging,
+    aws_s3_bucket_policy.staging,
+    aws_vpc_endpoint.s3,
   ]
 }
 

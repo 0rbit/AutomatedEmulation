@@ -95,30 +95,16 @@ data "aws_iam_policy_document" "staging" {
       values   = concat([local.src_ip], local.src_ipv6)
     }
   }
+}
 
-  # Deny everyone else. Instance role is exempt; operator IAM is allowed only from detected ISP IPs.
-  statement {
-    sid    = "DenyNotLabOrOperatorIp"
-    effect = "Deny"
-    principals {
-      type        = "*"
-      identifiers = ["*"]
-    }
-    actions = ["s3:*"]
-    resources = [
-      aws_s3_bucket.staging.arn,
-      "${aws_s3_bucket.staging.arn}/*",
-    ]
-    condition {
-      test     = "ArnNotEquals"
-      variable = "aws:PrincipalArn"
-      values   = compact([aws_iam_role.staging.arn, local.operator_principal_arn])
-    }
-    condition {
-      test     = "NotIpAddress"
-      variable = "aws:SourceIp"
-      values   = concat([local.src_ip], local.src_ipv6)
-    }
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.operator.id
+  service_name      = "com.amazonaws.${var.region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.operator-rt.id]
+
+  tags = {
+    Name = "operator-s3"
   }
 }
 
