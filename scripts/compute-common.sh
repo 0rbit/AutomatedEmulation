@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Shared helpers for lab EC2 status/stop/start scripts.
+# Manages the bas, win1, and ubuntu1 instances.
 
 set -euo pipefail
 
@@ -38,6 +39,9 @@ require_aws() {
   fi
 }
 
+# EC2 Name tags for the lab instances these scripts start, stop, and report.
+LAB_INSTANCE_NAMES=(bas win1 ubuntu1)
+
 lab_vpc_ids() {
   aws ec2 describe-vpcs \
     --region "${AWS_REGION_RESOLVED}" \
@@ -54,10 +58,14 @@ lab_instance_ids() {
     return 0
   fi
 
+  local names
+  names="$(IFS=,; echo "${LAB_INSTANCE_NAMES[*]}")"
+
   aws ec2 describe-instances \
     --region "${AWS_REGION_RESOLVED}" \
     --filters \
       "Name=vpc-id,Values=${vpcs}" \
+      "Name=tag:Name,Values=${names}" \
       "Name=instance-state-name,Values=pending,running,shutting-down,stopping,stopped" \
     --query 'Reservations[].Instances[].InstanceId' \
     --output text | tr '\t' '\n' | awk 'NF'
@@ -68,7 +76,7 @@ print_compute_status() {
   ids="$(lab_instance_ids)"
   echo "Region: ${AWS_REGION_RESOLVED}"
   if [[ -z "${ids}" ]]; then
-    echo "No lab EC2 instances found (VPC tag Name=operator_vpc)."
+    echo "No lab EC2 instances found (Name tags: ${LAB_INSTANCE_NAMES[*]}; VPC tag Name=operator_vpc)."
     return 0
   fi
 

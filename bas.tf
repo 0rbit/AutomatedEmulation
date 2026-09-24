@@ -299,7 +299,8 @@ curl -k https://${aws_instance.bas_server.public_dns}:${var.caldera_port_https}/
 
 SSH
 ---
-ssh -i ssh_key.pem ubuntu@${aws_instance.bas_server.public_ip}  
+BAS:     ssh -i ssh_key.pem ubuntu@${aws_instance.bas_server.public_ip}
+ubuntu1: ssh -i ssh_key.pem ubuntu@${aws_instance.ubuntu1.public_ip}
 
 CONFIGURATION
 }

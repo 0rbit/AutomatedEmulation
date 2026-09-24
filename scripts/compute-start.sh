@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start Automated Emulation EC2 instances. Use --wait to block until running.
+# Start lab EC2 instances (bas, win1, ubuntu1). Use --wait to block until running.
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ require_aws
 
 ids="$(lab_instance_ids)"
 if [[ -z "${ids}" ]]; then
-  echo "No lab EC2 instances found (VPC tag Name=operator_vpc)."
+  echo "No lab EC2 instances found (Name tags: ${LAB_INSTANCE_NAMES[*]}; VPC tag Name=operator_vpc)."
   exit 0
 fi
 

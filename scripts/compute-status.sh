@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Show status of Automated Emulation EC2 instances (BAS + Windows).
+# Show status of lab EC2 instances (bas, win1, ubuntu1).
 
 set -euo pipefail
 
