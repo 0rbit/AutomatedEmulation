@@ -52,41 +52,17 @@ export INSTANCE_PUBLIC_DNS=$PUBLIC_DNS
 openssl genpkey -algorithm RSA -out key.pem -pkeyopt rsa_keygen_bits:2048
 openssl req -new -x509 -key key.pem -out certificate.pem -days 365 -subj "/C=US/ST=New York/L=New York City/O=Your Organization/OU=Caldera/CN=$INSTANCE_PUBLIC_DNS" 
 
-# Get caldera.service 
-echo "Get caldera.service"
-file="caldera.service"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/caldera.service
+# Staging files are embedded in user-data so BAS does not need S3 at boot.
+echo "Write caldera.service"
+cat > /opt/caldera/caldera.service << 'CALDERA_SERVICE_EOF'
+${caldera_service}
+CALDERA_SERVICE_EOF
 
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
-
-# Get local.yml 
-echo "Get local.yml"
-file="local.yml"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/local.yml
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
+echo "Write local.yml"
+cat > /opt/caldera/local.yml << 'LOCALYML_EOF'
+${caldera_local_yml}
+LOCALYML_EOF
+sed -i "s/INSTANCE_PUBLIC_DNS/$${PUBLIC_DNS}/g" /opt/caldera/local.yml
 
 cd /opt/caldera
 sudo pip3 install -r requirements.txt
@@ -154,65 +130,18 @@ sed -i 's/insecure_certificate.pem/certificate.pem/' conf/haproxy.conf
 #sed -i "s|http://0.0.0.0:8888|https://$INSTANCE_PUBLIC_DNS:8443|" conf/local.yml
 #sed -i "s|host: 0.0.0.0|host: $INSTANCE_PUBLIC_DNS|" conf/local.yml
 
-# Download abilities zip
-echo "Get abilities.zip"
-file="abilities.zip"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/abilities.zip
+# Unpack custom abilities, adversaries, and payloads bundled in user-data
+echo "Write abilities.zip"
+echo "${abilities_zip_b64}" | base64 -d > /opt/caldera/abilities.zip
+sudo unzip -o /opt/caldera/abilities.zip -d /opt/caldera/data/abilities/
 
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
-# unzip abilities
-sudo unzip /opt/caldera/abilities.zip -d /opt/caldera/data/abilities/
+echo "Write adversaries.zip"
+echo "${adversaries_zip_b64}" | base64 -d > /opt/caldera/adversaries.zip
+sudo unzip -o /opt/caldera/adversaries.zip -d /opt/caldera/data/adversaries/
 
-# Download adversaries zip
-echo "Get adversaries.zip"
-file="adversaries.zip"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/adversaries.zip
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying"
-    fi
-done
-# unzip adversaries
-sudo unzip /opt/caldera/adversaries.zip -d /opt/caldera/data/adversaries/
-
-# Download payloads zip
-echo "Get payloads.zip"
-file="payloads.zip"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/caldera/payloads.zip
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
-# unzip payloads
-sudo unzip /opt/caldera/payloads.zip -d /opt/caldera/data/payloads/
+echo "Write payloads.zip"
+echo "${payloads_zip_b64}" | base64 -d > /opt/caldera/payloads.zip
+sudo unzip -o /opt/caldera/payloads.zip -d /opt/caldera/data/payloads/
 
 sudo chown -R caldera:caldera /opt/caldera
 sudo chmod 644 /etc/systemd/system/caldera.service
@@ -237,24 +166,12 @@ mkdir -p /opt/vectr
 cd /opt/vectr
 wget https://github.com/SecurityRiskAdvisors/VECTR/releases/download/ce-8.8.1/sra-vectr-runtime-8.8.1-ce.zip 
 unzip sra-vectr-runtime-8.8.1-ce.zip
-# Get the .env with correct variables
-echo "Get vector .env"
-file="vectr_env"
-object_url="https://${s3_bucket}.s3.${region}.amazonaws.com/$file"
-echo "Downloading s3 object url: $object_url"
-for i in {1..5}
-do
-    echo "Download attempt: $i"
-    curl "$object_url" -o /opt/vectr/vectr_env
-
-    if [ $? -eq 0 ]; then
-        echo "Download successful."
-        break
-    else
-        echo "Download failed. Retrying..."
-    fi
-done
-#copy the vectr_env to .env
+# Write VECTR .env from user-data (hostname filled from IMDS)
+echo "Write vectr .env"
+cat > /opt/vectr/vectr_env << 'VECTR_ENV_EOF'
+${vectr_env}
+VECTR_ENV_EOF
+sed -i "s/INSTANCE_PUBLIC_DNS/$${PUBLIC_DNS}/g" /opt/vectr/vectr_env
 cp /opt/vectr/vectr_env /opt/vectr/.env
 # Start docker containers
 echo "Start vectr containers"

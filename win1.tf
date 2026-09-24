@@ -23,7 +23,7 @@ data "aws_ami" "win1" {
   most_recent = true
 
   filter {
-    name   = "name"
+    name = "name"
     #values = ["Windows_Server-2019-English-Full-Base-*"]
     values = ["Windows_Server-2022-English-Full-Base-*"]
   }
@@ -32,19 +32,20 @@ data "aws_ami" "win1" {
 
 # EC2 Instance
 resource "aws_instance" "win1" {
-  ami           = data.aws_ami.win1.id
-  instance_type = "t2.micro"
-  key_name	= module.key_pair.key_pair_name
-  subnet_id     = aws_subnet.user_subnet.id
+  ami                         = data.aws_ami.win1.id
+  instance_type               = "t2.micro"
+  key_name                    = module.key_pair.key_pair_name
+  subnet_id                   = aws_subnet.user_subnet.id
   associate_public_ip_address = true
+  iam_instance_profile        = aws_iam_instance_profile.staging.name
   # user_data	= data.template_file.ps_template_win1.rendered
-  user_data	= local.ps_template_win1
+  user_data = local.ps_template_win1
   vpc_security_group_ids = [
     aws_security_group.operator_windows.id
   ]
 
   root_block_device {
-    volume_size           = 30
+    volume_size = 30
   }
 
   tags = {
@@ -52,6 +53,10 @@ resource "aws_instance" "win1" {
   }
   depends_on = [
     # reserved for later
+    aws_iam_role_policy.staging_read,
+    aws_iam_instance_profile.staging,
+    aws_s3_bucket_policy.staging,
+    aws_vpc_endpoint.s3,
   ]
 }
 
@@ -88,37 +93,37 @@ resource "aws_instance" "win1" {
 
 locals {
   ps_template_win1 = templatefile("${path.module}/files/windows/bootstrap-win.ps1.tpl", {
-    hostname                  = "win1"
-    join_domain               = var.join-domain-win1 ? 1 : 0
-    install_sysmon            = true ? 1 : 0
-    install_red               = true ? 1 : 0
-    install_ghosts            = false ? 1 : 0
-    install_prelude           = true ? 1 : 0
-    auto_logon_domain_user    = false ? 1 : 0
-    dc_ip                     = "" 
-    endpoint_ad_user          = "" 
-    endpoint_ad_password      = "" 
-    winrm_username            = "" 
-    winrm_password            = "" 
-    admin_username            = var.admin-username-win1
-    admin_password            = var.admin-password-win1
-    ad_domain                 = "rtc.local"
-    script_files              = join(",", local.script_files)
-    windows_msi               = "" 
-    vclient_config            = "" 
-    winlogbeat_zip            = "" 
-    winlogbeat_config         = "" 
-    sysmon_config             = local.sysmon_config 
-    sysmon_zip                = local.sysmon_zip 
-    s3_bucket                 = "${aws_s3_bucket.staging.id}"
-    region                    = var.region
+    hostname               = "win1"
+    join_domain            = var.join-domain-win1 ? 1 : 0
+    install_sysmon         = true ? 1 : 0
+    install_red            = true ? 1 : 0
+    install_ghosts         = false ? 1 : 0
+    install_prelude        = true ? 1 : 0
+    auto_logon_domain_user = false ? 1 : 0
+    dc_ip                  = ""
+    endpoint_ad_user       = ""
+    endpoint_ad_password   = ""
+    winrm_username         = ""
+    winrm_password         = ""
+    admin_username         = var.admin-username-win1
+    admin_password         = var.admin-password-win1
+    ad_domain              = "rtc.local"
+    script_files           = join(",", local.script_files)
+    windows_msi            = ""
+    vclient_config         = ""
+    winlogbeat_zip         = ""
+    winlogbeat_config      = ""
+    sysmon_config          = local.sysmon_config
+    sysmon_zip             = local.sysmon_zip
+    s3_bucket              = "${aws_s3_bucket.staging.id}"
+    region                 = var.region
   })
 }
 
 resource "local_file" "debug-bootstrap-script-win1" {
   # For inspecting the rendered powershell script as it is loaded onto endpoint 
   # content = data.template_file.ps_template_win1.rendered
-  content = local.ps_template_win1
+  content  = local.ps_template_win1
   filename = "${path.module}/output/windows/bootstrap-${var.endpoint_hostname-win1}.ps1"
 }
 

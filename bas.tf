@@ -69,7 +69,8 @@ output "public_dns" {
 variable "bas_server_instance_type" {
   description = "The AWS instance type to use for servers."
   #default     = "t2.micro"
-  default = "t3a.medium"
+  #default = "t3a.medium"
+  default = "t3a.xlarge"
 }
 
 variable "bas_root_block_device_size" {
@@ -220,18 +221,13 @@ data "aws_ami" "bas_server" {
 }
 
 resource "aws_instance" "bas_server" {
-  ami                    = data.aws_ami.bas_server.id
-  instance_type          = var.bas_server_instance_type
-  subnet_id              = aws_subnet.user_subnet.id
-  key_name               = module.key_pair.key_pair_name
-  vpc_security_group_ids = [aws_security_group.bas_ingress.id, aws_security_group.bas_ssh_ingress.id, aws_security_group.bas_allow_all_internal.id]
-
-  connection {
-    type        = "ssh"
-    user        = "ubuntu"
-    private_key = tls_private_key.private_key.private_key_pem
-    host        = self.public_ip
-  }
+  ami                         = data.aws_ami.bas_server.id
+  instance_type               = var.bas_server_instance_type
+  subnet_id                   = aws_subnet.user_subnet.id
+  key_name                    = module.key_pair.key_pair_name
+  iam_instance_profile        = aws_iam_instance_profile.staging.name
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.bas_ingress.id, aws_security_group.bas_ssh_ingress.id, aws_security_group.bas_allow_all_internal.id]
 
   tags = {
     "Name" = "bas"
@@ -244,11 +240,14 @@ resource "aws_instance" "bas_server" {
   }
 
   user_data = templatefile("files/bas/bootstrap.sh.tpl", {
-    s3_bucket = "${aws_s3_bucket.staging.id}"
-    region    = var.region
-    api_key   = var.api_key_red
+    api_key             = var.api_key_red
+    caldera_service     = file("${path.module}/files/bas/caldera.service")
+    caldera_local_yml   = local.caldera_local_yml_bootstrap
+    vectr_env           = local.vectr_env_bootstrap
+    abilities_zip_b64   = filebase64(data.archive_file.abilities.output_path)
+    payloads_zip_b64    = filebase64(data.archive_file.payloads.output_path)
+    adversaries_zip_b64 = filebase64(data.archive_file.adversaries.output_path)
   })
-
 }
 
 output "BAS_server_details" {
@@ -355,11 +354,29 @@ locals {
     caldera_host           = aws_instance.bas_server.public_dns
     caldera_transport      = var.caldera_transport_protocol
   })
+  caldera_local_yml_bootstrap = templatefile("${path.module}/files/bas/local.yml.tpl", {
+    api_key_blue           = var.api_key_blue
+    api_key_red            = var.api_key_red
+    blue_username          = var.blue_username
+    blue_password          = var.blue_password
+    caldera_admin_username = var.caldera_admin_username
+    caldera_admin_password = var.caldera_admin_password
+    red_username           = var.red_username
+    red_password           = var.red_password
+    caldera_port           = var.caldera_port_https
+    caldera_listen         = var.caldera_port
+    caldera_host           = "INSTANCE_PUBLIC_DNS"
+    caldera_transport      = var.caldera_transport_protocol
+  })
 }
 
 locals {
   vectr_env = templatefile("${path.module}/files/bas/vectr_env.tpl", {
     vectr_hostname = aws_instance.bas_server.public_dns
+    vectr_port     = var.vectr_port
+  })
+  vectr_env_bootstrap = templatefile("${path.module}/files/bas/vectr_env.tpl", {
+    vectr_hostname = "INSTANCE_PUBLIC_DNS"
     vectr_port     = var.vectr_port
   })
 }
