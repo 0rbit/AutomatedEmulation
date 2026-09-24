@@ -69,7 +69,8 @@ output "public_dns" {
 variable "bas_server_instance_type" {
   description = "The AWS instance type to use for servers."
   #default     = "t2.micro"
-  default = "t3a.medium"
+  #default = "t3a.medium"
+  default = "t3a.xlarge"
 }
 
 variable "bas_root_block_device_size" {
