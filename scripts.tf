@@ -14,8 +14,8 @@ locals {
         region        = var.region
         sysmon_config = local.sysmon_config
         sysmon_zip    = local.sysmon_zip
-        dc_ip         = "" 
-        domain_join   = false 
+        dc_ip         = ""
+        domain_join   = false
       }
     },
     {
@@ -28,7 +28,7 @@ locals {
       }
     }
   ]
-    
+
   script_contents = [
     for t in local.templatefiles : templatefile(t.name, t.variables)
   ]
